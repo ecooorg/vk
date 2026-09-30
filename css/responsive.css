@@ -1,0 +1,74 @@
+/* ==========================================================================
+   Responsive layer
+   Loaded AFTER style.css / slider.css.
+   Everything below sits inside media queries, so on screens wider than 1000px
+   the layout is defined by style.css alone.
+
+   Breakpoints
+     <= 1000px  fluid containers
+     <=  959px  tablets: both button rows wrap into 3 columns, 2-column cards
+     <=  720px  phones: tighter paddings, smaller banner, stacked contacts/map
+     <=  480px  small phones: 1-column cards, compact buttons
+   ========================================================================== */
+
+/* ---------- <= 1000px : containers become fluid ---------- */
+@media (max-width: 1000px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { min-width: 0; }
+  .main, #content, ul.menu, nav.techbar { width: auto; max-width: 960px; }
+  ul.menu { padding-left: 8px; padding-right: 8px; }
+  .box-1, .page { overflow-wrap: break-word; }
+  #slider .slider-block { width: 100%; }
+}
+
+/* ---------- <= 959px : tablets ---------- */
+@media (max-width: 959px) {
+
+  /* --- navigation: two rows of buttons wrap into 3 columns each --- */
+  nav { background: url(../images/header.jpg) 0 0 repeat-x #d5d5dd; }
+  ul.menu, ul.tech-nav { flex-wrap: wrap; }
+  ul.menu li, ul.tech-nav li { flex: 0 0 calc((100% - 16px) / 3); }
+  ul.tech-nav { row-gap: 8px; }
+
+  /* --- home page cards: 3 columns -> 2 --- */
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* --- section pages --- */
+  .section-lead { flex-direction: column; align-items: stretch; gap: 18px; }
+  .section-lead img { width: 100%; max-width: 100%; }
+}
+
+/* ---------- <= 720px : phones ---------- */
+@media (max-width: 720px) {
+  header p { display: none; }                          /* empty right-hand block of the header */
+  h1 { padding: 12px 0 12px 16px; }
+  h1 img { width: 170px; height: auto; }             /* smaller logo on phones */
+
+  ul.menu li a { font-size: 17px; line-height: 22px; padding: 8px 2px; }
+  ul.tech-nav li a { font-size: 16px; line-height: 20px; padding: 7px 2px; }
+  nav.techbar { padding: 12px 8px; }
+  #slider .slider-block { height: 64px; }
+  .prev, .next { top: 12px; }
+
+  .box-1 { padding: 20px 16px 28px; }
+  .page { padding: 20px 16px 28px; }
+  .page.home { padding: 22px 16px 26px; }
+
+  .text-2 { line-height: 22px; }                       /* multi-line headings were cramped at 16px */
+  .link { padding: 8px 0; }                            /* bigger tap area, layout unchanged */
+  p:not([class]) > a.link { font-size: 14px; }         /* Team: LinkedIn links were 11px */
+  .tech-links a { display: inline-block; }
+  .others-list a { flex: 1 1 100%; }
+
+  /* contacts: e-mail above the map, map fills the width */
+  .box-1 > div { float: none; width: auto; margin: 0; }
+  .box-1 iframe { display: block; width: 100%; max-width: 600px; height: 300px; }
+}
+
+/* ---------- <= 480px : small phones ---------- */
+@media (max-width: 480px) {
+  .cards { grid-template-columns: minmax(0, 1fr); }
+  h1 img { width: 140px; }
+  ul.menu li a { font-size: 15px; }
+  ul.tech-nav li a { font-size: 14px; }
+}
