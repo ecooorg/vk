@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>ECO NGO | Space Systems</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="images/favicon.png">
+<meta name="description" content="Software, communication and thermal-management architectures for autonomous spacecraft and satellite constellations, together with materials for reusable space hardware.">
+<link rel="stylesheet" type="text/css" media="screen" href="css/reset.css">
+<link rel="stylesheet" type="text/css" media="screen" href="css/style.css">
+<link rel="stylesheet" type="text/css" media="screen" href="css/responsive.css">
+<script src="js/responsive.js"></script>
+<link href='https://fonts.googleapis.com/css?family=Open+Sans+Condensed:700,300' rel='stylesheet' type='text/css'>
+<script src="js/jquery-1.7.min.js"></script>
+<script src="js/jquery.easing.1.3.js"></script>
+<!--[if lt IE 9]>
+<link href='https://fonts.googleapis.com/css?family=Open+Sans+Condensed:300' rel='stylesheet' type='text/css'>
+<link href='https://fonts.googleapis.com/css?family=Open+Sans+Condensed:700' rel='stylesheet' type='text/css'>
+<script type="text/javascript" src="js/html5.js"></script>
+<link rel="stylesheet" type="text/css" media="screen" href="css/ie.css">
+<![endif]-->
+</head>
+<body>
+
+<div class="bg">
+
+<header>
+<div class="main wrap">
+<h1><a href="index.html"><img src="images/logo.png" alt="ECO NGO"></a></h1>
+<p><span></span></p>
+</div>
+<nav aria-label="Main">
+<ul class="menu">
+<li><a href="index.html">Home</a></li>
+<li><a href="about.html">About</a></li>
+<li><a href="projects.html">Projects</a></li>
+<li><a href="publications.html">Publications</a></li>
+<li><a href="news.html">News</a></li>
+<li><a href="contacts.html">Contacts</a></li>
+</ul>
+</nav>
+</header>
+<nav class="techbar" aria-label="Technologies">
+<ul class="tech-nav">
+<li><a href="space.html" title="Space Systems" aria-current="page">Space</a></li>
+<li><a href="robotics.html" title="Robotics">Robotics</a></li>
+<li><a href="ai-safety.html" title="AI Safety &amp; Governance">AI Safety</a></li>
+<li><a href="strategy.html" title="Strategy &amp; Resilience">Strategy</a></li>
+<li><a href="energy.html" title="Energy &amp; Environment">Energy</a></li>
+<li><a href="materials.html" title="Materials &amp; Catalysis">Materials</a></li>
+</ul>
+</nav>
+
+<section id="content">
+
+<div class="block-1 page">
+
+<h2 class="p4">Space Systems</h2>
+
+<div class="section-lead">
+<img src="images/sec-space.jpg" alt="Illustration of satellites linked by optical beams above the Earth" width="1000" height="671">
+<p class="text-4">Software, communication and thermal-management architectures for autonomous spacecraft and satellite constellations, together with materials for reusable space hardware.</p>
+</div>
+
+<div class="tech" id="dps">
+<p class="text-2">Deterministic Predictive State</p>
+<p class="text-4">Round-trip light-time delays between Earth and Mars routinely reach 20-40 minutes. Under these conditions conventional transactional databases and consensus protocols either lock up or time out.</p>
+<p class="text-4">This paper describes a practical architecture that avoids the problem by running identical, bit-for-bit deterministic simulators on the ground and on the spacecraft. All calculations use software fixed-point arithmetic. Both sides share the same atomic-clock timeline (corrected for relativity) and the same sequence of pseudorandom seeds. When delayed telemetry arrives via DTN, the ground side rewinds its state to the timestamp of the data, merges the real measurements with CRDTs, and fast-forwards the simulation back to the present. Operators therefore work with a continuously updated predictive view that converges to the true spacecraft state once the data catch up.</p>
+<p class="text-4">The method is restricted to fully deterministic workloads: trajectory propagation, attitude dynamics, power and thermal modelling, and resource scheduling.</p>
+<p class="tech-links"><a class="link" href="https://doi.org/10.5281/zenodo.22055509" target="_blank" rel="noopener noreferrer">Full text (DOI)</a></p>
+</div>
+
+<div class="tech" id="pdomec">
+<p class="text-2">Path-Diverse Optical Mesh with Erasure Coding</p>
+<p class="text-4">Free-space optical links in satellite constellations deliver high bandwidth but are vulnerable to short-duration blockages caused by orbital debris, atmospheric turbulence, cloud cells and pointing jitter. Conventional link-level retransmission (ARQ) fails on long inter-satellite baselines because the propagation delay exhausts buffers and collapses throughput.</p>
+<p class="text-4">This paper describes a framing-layer architecture that tolerates such blockages without retransmissions or mechanical re-pointing. Incoming data are collected into fixed-length frames, expanded by erasure coding (Reed-Solomon or rateless fountain codes) with a configurable over-provisioning ratio, and the resulting shards are injected simultaneously across multiple spatially separated optical terminals on the same node. The receiving node reconstructs the original frame at line rate as soon as any K out of N shards arrive, discarding the rest. Transient losses on individual paths are absorbed by the coding redundancy and by the geometric diversity of the optical axes.</p>
+<p class="text-4">The method is intended for high-capacity synchronous streams in LEO, MEO, GEO and deep-space optical mesh networks.</p>
+<p class="tech-links"><a class="link" href="https://doi.org/10.5281/zenodo.22055733" target="_blank" rel="noopener noreferrer">Full text (DOI)</a></p>
+</div>
+
+<div class="tech" id="epp">
+<p class="text-2">Eclipse-Phase Passive Preprocessing with Graphene Thermal Structures</p>
+<p class="text-4">High-resolution Earth-observation satellites in low Earth orbit generate large raw data volumes that require substantial onboard computing for feature extraction, compression and filtering. Performing this work during the sunlit portion of the orbit adds heat and power load at the same time that solar arrays, sensors and transmitters are already active.</p>
+<p class="text-4">This paper describes a practical architecture that moves the heavy preprocessing entirely into the eclipse phase. Raw sensor data are buffered in non-volatile memory while the satellite is in sunlight. Once the spacecraft enters Earth's shadow the compute cluster is powered from a dedicated lithium-iron-phosphate battery bank sized for cold, deep-cycle operation. Waste heat is conducted through high-conductivity graphite or graphene structures to deployable radiators whose surfaces are coated for high infrared emissivity. Because the radiators face deep space with no solar or albedo input, the temperature difference is large and passive radiation is efficient. The reduced data volume is then downlinked on subsequent sunlit passes. The approach lowers peak power and thermal demand on the primary bus and reduces the mass required for active cooling.</p>
+<p class="tech-links"><a class="link" href="https://doi.org/10.5281/zenodo.22056910" target="_blank" rel="noopener noreferrer">Full text (DOI)</a></p>
+</div>
+
+<div class="tech" id="dftes">
+<p class="text-2">Distributed Fault-Tolerant Ephemeris Synchronization for Autonomous Satellite Constellations</p>
+<p class="text-4">Large satellite constellations need continuous, high-precision knowledge of every node's position and velocity to keep cross-links aligned and to perform collision-avoidance manoeuvres. Dependence on ground-based space situational awareness or GNSS creates a single point of failure that can be jammed, denied or simply out of contact.</p>
+<p class="text-4">This paper describes a fully decentralized software architecture that lets a constellation maintain a consistent ephemeris map using only inter-satellite links. Each satellite runs a local orbital propagator and keeps a state matrix for the whole constellation. When two nodes establish a link they exchange compact state vectors together with an explicit Epistemic Confidence Weight. The weight is computed from the age of the last absolute calibration, the local clock-drift estimate and the trace of the covariance matrix. Receiving nodes merge the incoming data with Covariance Intersection (including common variants of the algorithm). No master node or global lock is required; the collective map remains consistent with physical reality under partial connectivity.</p>
+<p class="text-4">The framework is intended for LEO mega-constellations, lunar or Martian orbital arrays, and any mission that must operate in contested or ground-denied environments.</p>
+<p class="tech-links"><a class="link" href="https://doi.org/10.5281/zenodo.22056455" target="_blank" rel="noopener noreferrer">Full text (DOI)</a></p>
+</div>
+
+<p class="subhead">Related technologies in other sections</p>
+
+<div class="tech tech-also" id="uhtc">
+<p class="text-2">In Situ Eutectic Ultra-High Temperature Ceramic Coatings</p>
+<p class="text-4">Ultra-high-temperature ceramic coatings with dispersed rhenium intermetallics for reusable thermal protection.</p>
+<p class="tech-links"><a class="link" href="materials.html#uhtc">Described in Materials &amp; Catalysis &raquo;</a></p>
+</div>
+
+<div class="tech tech-also" id="aerogel">
+<p class="text-2">Cluster-Stabilized Topological Graphene Aerogels</p>
+<p class="text-4">Graphene aerogel cross-linked with dirhenium cluster nodes for cryogenic insulation and radiation shielding.</p>
+<p class="tech-links"><a class="link" href="materials.html#aerogel">Described in Materials &amp; Catalysis &raquo;</a></p>
+</div>
+
+<div class="tech tech-also" id="actis">
+<p class="text-2">Autonomous Cryogenic Two-Stage In-Loop Sealing of Microdefects Using Circulating Nanocapsulated Agents</p>
+<p class="text-4">Sealing of microdefects in cryogenic systems with nanocapsules carried by the coolant itself.</p>
+<p class="tech-links"><a class="link" href="materials.html#actis">Described in Materials &amp; Catalysis &raquo;</a></p>
+</div>
+
+<div class="others">
+<p class="text-2">Other sections</p>
+<div class="others-list">
+<a href="energy.html"><img src="images/ico-energy.png" alt="" width="44" height="44"><span>Energy &amp; Environment</span></a>
+<a href="materials.html"><img src="images/ico-materials.png" alt="" width="44" height="44"><span>Materials &amp; Catalysis</span></a>
+<a href="robotics.html"><img src="images/ico-robotics.png" alt="" width="44" height="44"><span>Robotics</span></a>
+<a href="ai-safety.html"><img src="images/ico-ai-safety.png" alt="" width="44" height="44"><span>AI Safety &amp; Governance</span></a>
+<a href="strategy.html"><img src="images/ico-strategy.png" alt="" width="44" height="44"><span>Strategy &amp; Resilience</span></a>
+</div>
+</div>
+
+</div>
+</section>
+</div>
+</body>
+</html>

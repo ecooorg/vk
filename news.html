@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>News - last 7 days</title>
+<style>
+  :root {
+    --bg: #0b0f19; --text: #e2e8f0; --muted: #64748b; --accent: #38bdf8;
+    --border: #1e293b; --hover: #131b2c; --panel: #111827;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.4;
+  }
+  .container { max-width: 1000px; margin: 0 auto; padding: 14px; }
+  header {
+    position: sticky; top: 0; z-index: 3; background: var(--bg);
+    padding: 8px 0 10px; margin-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  /* all topic buttons share the full width, never scroll; long names get cut with " " */
+  .tabs { display: flex; gap: 6px; width: 100%; }
+  .tab {
+    flex: 1 1 auto; min-width: 0; text-align: center;
+    background: var(--panel); border: 1px solid var(--border);
+    color: #cbd5e1; padding: 8px 6px; border-radius: 999px; font-size: .88rem;
+  }
+  .tab span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab .short { display: none; }
+  .tab:hover { background: #1a2436; }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #04121c; font-weight: 700; }
+  .tabs.searching .tab.active { background: var(--panel); border-color: var(--border); color: #cbd5e1; font-weight: 400; }  /* global search: no topic is 'current' */
+  @media (max-width: 600px) {
+    .tabs { gap: 4px; }
+    .tab { padding: 8px 3px; font-size: .78rem; min-width: 34px; }
+    .tab .full { display: none; }
+    .tab .short { display: block; }
+  }
+  button {
+    background: #1e293b; border: 1px solid #334155; color: #fff;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: .85rem;
+  }
+  button:hover { background: #273549; }
+  button:disabled { opacity: .5; cursor: default; }
+  input[type=search] {
+    width: 100%; padding: 9px 12px; border-radius: 6px; margin-bottom: 8px;
+    border: 1px solid var(--border); background: var(--panel); color: #fff;
+    font-size: .95rem; outline: none;
+  }
+  input[type=search]:focus { border-color: var(--accent); }
+  .progress { height: 2px; background: var(--border); margin-bottom: 8px; border-radius: 2px; overflow: hidden; }
+  .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+  .day {
+    position: sticky; top: var(--hdr, 0px); background: var(--bg); z-index: 2;
+    padding: 12px 4px 6px; font-size: .8rem; font-weight: 700;
+    color: var(--accent); text-transform: uppercase; letter-spacing: .05em;
+    border-bottom: 1px solid var(--border);
+  }
+  .row {
+    display: flex; gap: 14px; align-items: baseline;
+    padding: 7px 4px; border-bottom: 1px solid var(--border);
+  }
+  .row:hover { background: var(--hover); }
+  .time { width: 48px; min-width: 48px; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+  .title { flex: 1; min-width: 0; }
+  .title a { color: var(--text); text-decoration: none; }
+  .title a:hover { color: #fff; text-decoration: underline; }
+  .title a:visited { color: #94a3b8; }
+  .src { color: var(--muted); font-size: .75rem; white-space: nowrap; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+  .searchinfo { display: none; color: var(--muted); font-size: .8rem; padding: 2px 4px 6px; }
+  .tag {
+    display: inline-block; margin-right: 6px; padding: 0 5px; vertical-align: 1px;
+    font-size: .65rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid var(--border); border-radius: 4px;
+  }
+  .status { text-align: center; padding: 30px; color: var(--muted); }
+  .sources { margin-top: 22px; padding-top: 10px; border-top: 1px solid var(--border); font-size: .75rem; color: var(--muted); }
+  .sources b.ok { color: #4ade80; font-weight: 600; }
+  .sources b.fail { color: #f87171; font-weight: 600; }
+  .diag { margin-top: 8px; font-size: .7rem; color: #94a3b8; word-break: break-word; }
+  .diag div { margin-top: 3px; }
+  @media (max-width: 600px) { .src { display: none; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header id="hdr">
+    <div class="tabs" id="tabs"></div>
+  </header>
+
+  <input type="search" id="search" placeholder="Search all topics (English words) last 7 days">
+  <div class="progress"><div id="bar"></div></div>
+  <div class="searchinfo" id="searchinfo"></div>
+
+  <div id="list"></div>
+  <div class="status" id="status">Loading feeds </div>
+  <div class="sources" id="sources"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Topics & sources ----------
+   filter:true  -> general feed, keep only items whose title matches the topic's `re`
+   filter:false -> feed is already on-topic
+   To add a topic: copy one block below and change label / feeds.
+   NOTE: Google News RSS is not used any more - it answers HTTP 503 to Cloudflare Workers.
+         BleepingComputer / Krebs answer HTTP 403 (bot protection), so they were replaced too.   */
+const TOPICS = [
+  {
+    id: "ai", label: "AI", short: "AI",
+    re: /\b(ai|a\.i\.|artificial intelligence|machine learning|deep learning|llms?|gpt|chatgpt|openai|anthropic|claude|gemini|deepmind|generative|genai|neural|chatbots?|copilot|llama|mistral|nvidia|agentic|ai agents?)\b/i,
+    feeds: [
+      { name: "TechCrunch AI",   url: "https://techcrunch.com/category/artificial-intelligence/feed/" },
+      { name: "The Verge AI",    url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml" },
+      { name: "Ars Technica AI", url: "https://arstechnica.com/ai/feed/" },
+      { name: "MIT Tech Review", url: "https://www.technologyreview.com/topic/artificial-intelligence/feed" },
+      { name: "Wired AI",        url: "https://www.wired.com/feed/tag/ai/latest/rss" },
+      { name: "The Decoder",     url: "https://the-decoder.com/feed/" },
+      { name: "IEEE Spectrum",   url: "https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss" },
+      { name: "OpenAI",          url: "https://openai.com/news/rss.xml" },
+      { name: "Google AI",       url: "https://blog.google/technology/ai/rss/" },
+      { name: "NVIDIA Blog",     url: "https://blogs.nvidia.com/feed/", filter: true },
+      { name: "AWS ML Blog",     url: "https://aws.amazon.com/blogs/machine-learning/feed/" },
+      { name: "InfoQ AI/ML",     url: "https://feed.infoq.com/ai-ml-data-eng/" },
+      { name: "The Guardian AI", url: "https://www.theguardian.com/technology/artificialintelligenceai/rss" },
+      { name: "Hacker News AI",  url: "https://hnrss.org/newest?q=AI+OR+LLM+OR+OpenAI+OR+Anthropic+OR+GPT&points=100" }
+    ]
+  },
+  {
+    id: "robotics", label: "Robotics", short: "Robots",
+    re: /\b(robots?|robotics?|robotaxis?|humanoids?|drones?|autonomous|exoskeletons?|cobots?|boston dynamics|optimus|unitree|figure ai)\b/i,
+    feeds: [
+      { name: "IEEE Robotics",    url: "https://spectrum.ieee.org/feeds/topic/robotics.rss" },
+      { name: "The Robot Report", url: "https://www.therobotreport.com/feed/" },
+      { name: "TechCrunch Robotics", url: "https://techcrunch.com/category/robotics/feed/" },
+      { name: "Robohub",          url: "https://robohub.org/feed/" },
+      { name: "TechXplore Robotics", url: "https://techxplore.com/rss-feed/robotics-news/" },
+      { name: "Ars Technica",     url: "https://feeds.arstechnica.com/arstechnica/technology-lab", filter: true },
+      { name: "Wired",            url: "https://www.wired.com/feed/rss", filter: true },
+      { name: "The Verge",        url: "https://www.theverge.com/rss/index.xml", filter: true }
+    ]
+  },
+  {
+    id: "climate", label: "Climate & Disasters", short: "Climate",
+    re: /\b(climate|weather|wildfires?|floods?|flooding|hurricanes?|typhoons?|cyclones?|earthquakes?|tsunami|heat ?waves?|droughts?|storms?|tornado(es)?|volcano|emissions|global warming|sea level|el nino)\b/i,
+    feeds: [
+      { name: "Guardian Climate", url: "https://www.theguardian.com/environment/climate-crisis/rss" },
+      { name: "Guardian Environment", url: "https://www.theguardian.com/environment/rss" },
+      { name: "Carbon Brief",     url: "https://www.carbonbrief.org/feed/" },
+      { name: "Inside Climate News", url: "https://insideclimatenews.org/feed/" },
+      { name: "Phys.org Earth",   url: "https://phys.org/rss-feed/earth-news/" },
+      { name: "NASA Earth Observatory", url: "https://earthobservatory.nasa.gov/feeds/earth-observatory.rss" },
+      { name: "USGS Big Quakes",  url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.atom" },
+      { name: "BBC Science & Env.", url: "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", filter: true },
+      { name: "BBC World",        url: "https://feeds.bbci.co.uk/news/world/rss.xml", filter: true },
+      { name: "Al Jazeera",       url: "https://www.aljazeera.com/xml/rss/all.xml", filter: true }
+    ]
+  },
+  {
+    id: "space", label: "Space", short: "Space",
+    re: /\b(space|nasa|esa|spacex|rocket|satellite|moon|lunar|mars|orbit|astronom\w*|telescope|asteroid|galaxy|starship|iss)\b/i,
+    feeds: [
+      { name: "SpaceNews",       url: "https://spacenews.com/feed/" },
+      { name: "Space.com",       url: "https://www.space.com/feeds.xml" },
+      { name: "NASA",            url: "https://www.nasa.gov/feed/" },
+      { name: "Ars Technica Space", url: "https://arstechnica.com/space/feed/" },
+      { name: "Universe Today",  url: "https://www.universetoday.com/feed" },
+      { name: "Phys.org Astronomy", url: "https://phys.org/rss-feed/space-news/astronomy/" },
+      { name: "Phys.org Planetary", url: "https://phys.org/rss-feed/space-news/planetary-sciences/" },
+      { name: "NYT Space",       url: "https://rss.nytimes.com/services/xml/rss/nyt/Space.xml" }
+    ]
+  },
+  {
+    id: "weapons", label: "Weapons", short: "Weapons",
+    re: /\b(missiles?|anti-?missile|counter-?missiles?|drones?|uavs?|uas|uncrewed|unmanned|counter-?drone|anti-?drone|c-?uas|loitering|swarms?|air[- ]defen[cs]e|missile[- ]defen[cs]e|golden dome|hypersonics?|interceptors?|radars?|warships?|fighter|fighters|stealth|bombers?|submarines?|torpedoes?|frigates?|destroyers?|artillery|howitzers?|himars|munitions?|warheads?|icbms?|ballistic|patriot|thaad|aegis|iron dome|s-[34]00|directed[- ]energy|laser weapons?|railguns?|f-\d+|b-\d+|collaborative combat|loyal wingman|space force|anti-?satellite|asat|tanks?|armou?red|autonomous weapons?|weapons?)\b/i,
+    feeds: [
+      { name: "The War Zone",     url: "https://www.twz.com/feed" },
+      { name: "Naval News",       url: "https://www.navalnews.com/feed/" },
+      { name: "The Aviationist",  url: "https://theaviationist.com/feed/" },
+      { name: "Defence Blog",     url: "https://defence-blog.com/feed/" },
+      { name: "Breaking Defense", url: "https://breakingdefense.com/feed/", filter: true },
+      { name: "Defense News",     url: "https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml", filter: true },
+      { name: "Defense One",      url: "https://www.defenseone.com/rss/all/", filter: true },
+      { name: "Air & Space Forces", url: "https://www.airandspaceforces.com/feed/", filter: true },
+      { name: "War on the Rocks", url: "https://warontherocks.com/feed/", filter: true }
+    ]
+  },
+  {
+    id: "science", label: "Science", short: "Science",
+    re: /./,
+    feeds: [
+      { name: "ScienceDaily",    url: "https://www.sciencedaily.com/rss/all.xml" },
+      { name: "Phys.org",        url: "https://phys.org/rss-feed/" },
+      { name: "Nature",          url: "https://www.nature.com/nature.rss" },
+      { name: "New Scientist",   url: "https://www.newscientist.com/feed/home/" },
+      { name: "Quanta Magazine", url: "https://www.quantamagazine.org/feed/" },
+      { name: "Science News",    url: "https://www.sciencenews.org/feed" },
+      { name: "Ars Technica Science", url: "https://arstechnica.com/science/feed/" }
+    ]
+  },
+  {
+    id: "health", label: "Health & Biotech", short: "Health",
+    re: /./,
+    feeds: [
+      { name: "STAT News",       url: "https://www.statnews.com/feed/" },
+      { name: "ScienceDaily Health", url: "https://www.sciencedaily.com/rss/health_medicine.xml" },
+      { name: "Guardian Health", url: "https://www.theguardian.com/society/health/rss" },
+      { name: "Medical Xpress",  url: "https://medicalxpress.com/rss-feed/" },
+      { name: "BioPharma Dive",  url: "https://www.biopharmadive.com/feeds/news/" },
+      { name: "NPR Health",      url: "https://feeds.npr.org/1128/rss.xml" }
+    ]
+  }
+];
+
+const DAYS = 7;
+const TIMEOUT_MS = 10000;
+const STALE_MS = 15 * 60 * 1000;
+const CACHE_PREFIX = "news_cache_v2_";
+const LAST_TOPIC_KEY = "news_last_topic";
+
+/* ---------- YOUR OWN PROXY (recommended) ----------
+   Put the URL of your Cloudflare Worker here, e.g. "https://news-proxy.yourname.workers.dev"
+   Public free proxies are unreliable and mostly blocked.
+   Optional: free key from rss2json.com makes the last-resort fallback more reliable.            */
+const WORKER_URL = "https://tiny-salad-c0b4.gasphc.workers.dev";
+const RSS2JSON_KEY = "";
+
+const WORKER = WORKER_URL.trim().replace(/\/+$/, "");
+const CONCURRENCY = WORKER ? 6 : 3;   // public proxies rate-limit hard, so be gentler without own worker
+
+/* ---------- CORS routes ----------
+   The page runs from a local file (origin "null"), so browsers block direct requests to most sites.
+   Order: own worker -> direct request -> free public proxies.
+   `skippable` routes are paused for 5 min after repeated failures with zero successes,
+   so a dead proxy doesn't slow every feed down.                                                    */
+const ROUTES = [];
+if (WORKER) {
+  ROUTES.push({ id: "worker", make: u => WORKER + "/?url=" + encodeURIComponent(u) });
+  ROUTES.push({ id: "direct", make: u => u });   // instant CORS failure for most sites, but free for those that allow it
+} else {
+  ROUTES.push(
+    { id: "direct",    make: u => u },
+    { id: "corsproxy", skippable: true, make: u => "https://corsproxy.io/?url=" + encodeURIComponent(u) },
+    { id: "allorigins",skippable: true, make: u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u) },
+    { id: "codetabs",  skippable: true, make: u => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u) }
+  );
+}
+const USE_RSS2JSON = !WORKER || !!RSS2JSON_KEY;   // rss2json without a key is rate-limited (HTTP 429), so only as a fallback
+const routeStats = {};
+[...ROUTES.map(r => r.id), "rss2json"].forEach(id => routeStats[id] = { ok: 0, fail: 0, until: 0 });
+
+function routePaused(id, skippable) { return skippable && Date.now() < routeStats[id].until; }
+function routeOk(id)   { const st = routeStats[id]; st.ok++; st.until = 0; }
+function routeFail(id) { const st = routeStats[id]; st.fail++; if (st.ok === 0 && st.fail >= 4) st.until = Date.now() + 5 * 60 * 1000; }
+
+const $tabs = document.getElementById("tabs");
+const $list = document.getElementById("list");
+const $status = document.getElementById("status");
+const $sources = document.getElementById("sources");
+const $bar = document.getElementById("bar");
+const $search = document.getElementById("search");
+const $header = document.getElementById("hdr");
+const $info = document.getElementById("searchinfo");
+
+// each topic keeps its own state, so switching back to a topic is instant
+TOPICS.forEach(t => t.state = { articles: [], seen: new Set(), results: [], done: 0, loading: false, loadedAt: 0, message: "" });
+let current = TOPICS[0];
+
+/* ---------- helpers ---------- */
+function withTimeout(promiseFactory, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return promiseFactory(ctrl.signal).finally(() => clearTimeout(t));
+}
+
+function looksLikeFeed(text) {
+  return typeof text === "string" && /<(rss|feed|rdf:RDF)[\s>]/i.test(text.slice(0, 3000));
+}
+
+async function fetchFeedText(url) {
+  const errs = [];
+  for (const route of ROUTES) {
+    if (routePaused(route.id, route.skippable)) { errs.push(route.id + ": paused"); continue; }
+    try {
+      const text = await withTimeout(async signal => {
+        const res = await fetch(route.make(url), { signal });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.text();
+      }, TIMEOUT_MS);
+      if (!looksLikeFeed(text)) throw new Error("not a feed");
+      routeOk(route.id);
+      return { text, errs };
+    } catch (e) {
+      routeFail(route.id);
+      errs.push(route.id + ": " + (e.name === "AbortError" ? "timeout" : (e.message === "Failed to fetch" ? "blocked/CORS" : e.message)));
+    }
+  }
+  return { text: null, errs };
+}
+
+// Last resort: rss2json returns ready JSON and sends CORS headers itself
+async function fetchViaRss2Json(url) {
+  if (routePaused("rss2json", true)) return { items: null, err: "rss2json: paused" };
+  try {
+    const api = "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(url) +
+                (RSS2JSON_KEY ? "&api_key=" + encodeURIComponent(RSS2JSON_KEY) : "");
+    const data = await withTimeout(async signal => {
+      const res = await fetch(api, { signal });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }, TIMEOUT_MS);
+    if (data && data.status === "ok" && Array.isArray(data.items)) {
+      routeOk("rss2json");
+      return { items: data.items.map(i => ({
+        title: i.title, url: i.link,
+        date: parseDate((i.pubDate || "").replace(" ", "T") + "Z") // rss2json gives UTC "YYYY-MM-DD HH:MM:SS"
+      })) };
+    }
+    throw new Error((data && data.message) || "bad response");
+  } catch (e) {
+    routeFail("rss2json");
+    return { items: null, err: "rss2json: " + (e.name === "AbortError" ? "timeout" : (e.message === "Failed to fetch" ? "blocked" : e.message)) };
+  }
+}
+
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(s.trim());
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function decodeEntities(str) {
+  const ta = document.createElement("textarea");
+  ta.innerHTML = str;
+  return ta.value;
+}
+
+function firstText(el, names) {
+  for (const n of names) {
+    const found = el.getElementsByTagName(n)[0];
+    if (found && found.textContent.trim()) return found.textContent.trim();
+  }
+  return "";
+}
+
+function parseFeed(xmlText, feed) {
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  if (doc.getElementsByTagName("parsererror").length) return null;
+
+  let nodes = Array.from(doc.getElementsByTagName("item"));
+  if (!nodes.length) nodes = Array.from(doc.getElementsByTagName("entry")); // Atom
+
+  const items = [];
+  let skipped = 0;
+  for (const el of nodes) {
+    let title = firstText(el, ["title"]);
+    // link: RSS -> text, Atom -> href attribute (prefer rel="alternate")
+    let link = "";
+    const links = Array.from(el.getElementsByTagName("link"));
+    for (const l of links) {
+      const href = l.getAttribute("href");
+      if (href && (!l.getAttribute("rel") || l.getAttribute("rel") === "alternate")) { link = href; break; }
+    }
+    if (!link) for (const l of links) { if (l.textContent.trim()) { link = l.textContent.trim(); break; } }
+    if (!link) link = firstText(el, ["guid"]);
+
+    const date = parseDate(firstText(el, ["pubDate", "dc:date", "published", "updated", "date"]));
+    if (!title || !link || !date) { skipped++; continue; }
+
+    let source = feed.name;
+    if (feed.gnews) {
+      const s = firstText(el, ["source"]);
+      if (s) {
+        source = s;
+        const suffix = " - " + s;
+        if (title.endsWith(suffix)) title = title.slice(0, -suffix.length);
+      }
+    }
+    items.push({ title: decodeEntities(title), url: link, date, source });
+  }
+  items.skipped = skipped;
+  return items;
+}
+
+function isHttp(u) { return /^https?:\/\//i.test(u); }
+
+/* ---------- loading ---------- */
+async function loadFeed(feed) {
+  let items = null;
+  const { text, errs } = await fetchFeedText(feed.url);
+  if (text) {
+    items = parseFeed(text, feed);
+    if (!items) errs.push("parse error");
+  }
+  if (!items && USE_RSS2JSON) {
+    const alt = await fetchViaRss2Json(feed.url);
+    if (alt.items) items = alt.items.map(i => ({ ...i, source: feed.name }));
+    else errs.push(alt.err);
+  }
+  return { items, errs }; // items === null -> failed
+}
+
+function titleKey(t) { return t.toLowerCase().replace(/\W+/g, " ").trim(); }
+
+// `target` = { articles, seen }: a work area, so a background refresh never empties a list that is already shown
+function addArticles(topic, items, feed, target) {
+  const limit = Date.now() - DAYS * 86400000;
+  const now = Date.now() + 3600000; // ignore dates from the far future
+  const stats = { added: 0, total: items.length + (items.skipped || 0), old: 0, offtopic: 0, dup: 0, bad: items.skipped || 0 };
+  for (const a of items) {
+    if (!a.title || !a.url || !isHttp(a.url) || !a.date) { stats.bad++; continue; }
+    const t = a.date.getTime();
+    if (t < limit || t > now) { stats.old++; continue; }
+    if (feed.filter && !topic.re.test(a.title)) { stats.offtopic++; continue; }
+    const key = a.url.split("#")[0];
+    const tk = titleKey(a.title);
+    if (target.seen.has(key) || target.seen.has(tk)) { stats.dup++; continue; }
+    target.seen.add(key); target.seen.add(tk);
+    target.articles.push(a);
+    stats.added++;
+  }
+  return stats;
+}
+
+function searchQuery() { const q = $search.value.toLowerCase().trim(); return q.length >= 2 ? q : ""; }
+// redraw when the visible topic changes, or when a global search is showing (any topic may add results)
+function notify(topic) { if (topic === current || searchQuery()) updateUI(); }
+
+async function loadTopic(topic) {
+  const st = topic.state;
+  if (st.loading) return;
+  st.loading = true;
+  const target = { articles: [], seen: new Set() };
+  const firstLoad = st.articles.length === 0;
+  if (firstLoad) { st.articles = target.articles; st.seen = target.seen; }   // first load: show news progressively
+  st.results = []; st.done = 0; st.message = firstLoad ? "Loading feeds" : "";
+  notify(topic);
+
+  let next = 0;
+  async function worker() {
+    while (next < topic.feeds.length) {
+      const feed = topic.feeds[next++];
+      const { items, errs } = await loadFeed(feed);
+      const stats = items ? addArticles(topic, items, feed, target) : null;
+      const added = stats ? stats.added : 0;
+      st.results.push({ feed, ok: !!items, added, errs, stats });
+      st.done++;
+      if (topic === current) updateUI();
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+
+  if (target.articles.length) {
+    st.articles = target.articles; st.seen = target.seen;
+    st.message = "";
+    saveCache(topic);
+  } else if (!firstLoad) {
+    st.message = "Could not refresh” showing previously loaded news.";
+  } else {
+    const cached = loadCache(topic);
+    if (cached.length) {
+      st.articles = cached;
+      st.message = "Could not reach any source - showing the last saved feed.";
+    } else {
+      st.message = "Could not load any feeds. Check your internet connection and the WORKER_URL setting, then reload the page or switch to another tab and back.";
+    }
+  }
+  st.loading = false;
+  st.loadedAt = Date.now();
+  notify(topic);
+}
+
+// Load / refresh every topic in the background, one after another, so the global search always has data.
+let refreshing = false;
+async function refreshStale() {
+  if (refreshing) return;
+  refreshing = true;
+  try {
+    for (const t of TOPICS) {
+      const st = t.state;
+      if (st.loading) continue;
+      const maxAge = st.articles.length ? STALE_MS : 60000;   // retry an empty/failed topic after a minute
+      if (st.loadedAt && Date.now() - st.loadedAt < maxAge) continue;
+      await loadTopic(t);
+    }
+  } finally { refreshing = false; }
+}
+
+/* ---------- cache (so the page isn't empty if the network is down) ---------- */
+function saveCache(topic) {
+  try {
+    localStorage.setItem(CACHE_PREFIX + topic.id, JSON.stringify(
+      topic.state.articles.map(a => ({ t: a.title, u: a.url, d: a.date.getTime(), s: a.source }))
+    ));
+  } catch (e) {}
+}
+function loadCache(topic) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CACHE_PREFIX + topic.id) || "[]");
+    const limit = Date.now() - DAYS * 86400000;
+    return raw.map(x => ({ title: x.t, url: x.u, date: new Date(x.d), source: x.s }))
+              .filter(a => a.date.getTime() >= limit);
+  } catch (e) { return []; }
+}
+
+/* ---------- rendering ---------- */
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function dayLabel(d) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - day) / 86400000);
+  const full = d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+  if (diff === 0) return "Today" + full;
+  if (diff === 1) return "Yesterday" + full;
+  return full;
+}
+
+function pad(n) { return String(n).padStart(2, "0"); }
+
+function updateUI() {
+  const st = current.state;
+  const q = searchQuery();
+  $tabs.classList.toggle("searching", !!q);
+
+  // progress bar (current topic)
+  $bar.style.width = st.loading ? (st.done / current.feeds.length * 100) + "%" : "0";
+
+  if (q) {
+    // global search: the per-topic status line and sources footer are hidden
+    $status.style.display = "none";
+    $sources.style.display = "none";
+  } else {
+    $sources.style.display = "";
+    if (st.message && (st.loading ? !st.articles.length : true)) {
+      $status.style.display = "block";
+      $status.textContent = st.message;
+    } else {
+      $status.style.display = "none";
+    }
+
+    // sources footer
+    if (st.results.length) {
+      const okCount = st.results.filter(r => r.ok).length;
+      const failed = st.results.filter(r => !r.ok);
+      const zero = st.results.filter(r => r.ok && !r.added && r.stats);
+      const lines = failed.map(r => `<div>${esc(r.feed.name)} - ${esc((r.errs || []).join(" | "))}</div>`)
+        .concat(zero.map(r => `<div>${esc(r.feed.name)} - 0 of ${r.stats.total} used (older than ${DAYS} days: ${r.stats.old}, off-topic: ${r.stats.offtopic}, duplicates: ${r.stats.dup}, unreadable: ${r.stats.bad})</div>`));
+      const diag = lines.length ? '<div class="diag">' + lines.join("") + "</div>" : "";
+      $sources.innerHTML = "Sources: " + st.results.slice()
+        .sort((a, b) => a.feed.name.localeCompare(b.feed.name))
+        .map(r => `<span>${esc(r.feed.name)} <b class="${r.ok ? "ok" : "fail"}">${r.ok ? r.added : "failed"}</b></span>`)
+        .join(" - ") + ` &nbsp;(${okCount}/${st.results.length} reachable)` + diag;
+    } else {
+      $sources.innerHTML = "";
+    }
+  }
+
+  renderList();
+}
+
+// every word of the query must appear in title or source; the same story found in several topics is shown once
+function searchAll(q) {
+  const words = q.split(/\s+/).filter(Boolean);
+  const byKey = new Map();
+  for (const t of TOPICS) {
+    for (const a of t.state.articles) {
+      const hay = (a.title + " " + a.source).toLowerCase();
+      if (!words.every(w => hay.includes(w))) continue;
+      const key = a.url.split("#")[0], tk = "t:" + titleKey(a.title);
+      let e = byKey.get(key) || byKey.get(tk);
+      if (!e) { e = { ...a, topics: [] }; byKey.set(key, e); byKey.set(tk, e); }
+      if (!e.topics.includes(t)) e.topics.push(t);
+    }
+  }
+  return [...new Set(byKey.values())];
+}
+
+function renderList() {
+  const q = searchQuery();
+  let list, info = "";
+  if (q) {
+    list = searchAll(q);
+    const pending = TOPICS.filter(t => t.state.loading || !t.state.loadedAt).map(t => t.short || t.label);
+    info = (list.length ? "Found " + list.length + " across all topics"
+                        : (pending.length ? "No matches yet" : "Nothing found in any topic"))
+         + (pending.length ? " still loading: " + pending.join(", ") : "");
+  } else {
+    list = current.state.articles.slice();
+  }
+  list.sort((a, b) => b.date - a.date);
+  $info.textContent = info;
+  $info.style.display = info ? "block" : "none";
+
+  const frag = document.createDocumentFragment();
+  let lastDay = "";
+  for (const a of list) {
+    const label = dayLabel(a.date);
+    if (label !== lastDay) {
+      const h = document.createElement("div");
+      h.className = "day";
+      h.textContent = label;
+      frag.appendChild(h);
+      lastDay = label;
+    }
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const time = document.createElement("div");
+    time.className = "time";
+    time.textContent = pad(a.date.getHours()) + ":" + pad(a.date.getMinutes());
+
+    const title = document.createElement("div");
+    title.className = "title";
+    if (a.topics) {                       // global search: show which topic(s) the story belongs to
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = a.topics.map(t => t.short || t.label).join(" / ");
+      title.appendChild(tag);
+    }
+    const link = document.createElement("a");
+    link.href = a.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = a.title;
+    title.appendChild(link);
+
+    const src = document.createElement("div");
+    src.className = "src";
+    src.textContent = a.source;
+    src.title = a.source;
+
+    row.append(time, title, src);
+    frag.appendChild(row);
+  }
+  $list.replaceChildren(frag);
+}
+
+/* ---------- topic tabs ---------- */
+function buildTabs() {
+  TOPICS.forEach(t => {
+    const b = document.createElement("button");
+    b.className = "tab";
+    for (const [cls, text] of [["full", t.label], ["short", t.short || t.label]]) {
+      const sp = document.createElement("span");
+      sp.className = cls; sp.textContent = text;
+      b.appendChild(sp);
+    }
+    b.title = t.label;
+    b.dataset.id = t.id;
+    b.addEventListener("click", () => selectTopic(t));
+    $tabs.appendChild(b);
+  });
+}
+
+function selectTopic(topic) {
+  current = topic;
+  try { localStorage.setItem(LAST_TOPIC_KEY, topic.id); } catch (e) {}
+  document.title = topic.label + " News - last 7 days";
+  $tabs.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.id === topic.id));
+  $search.value = "";                     // tapping a tab leaves the global search
+  window.scrollTo(0, 0);
+  updateUI();
+  const st = topic.state;
+  if (!st.loading && (!st.articles.length || Date.now() - st.loadedAt > STALE_MS)) return loadTopic(topic);
+  return Promise.resolve();
+}
+
+/* ---------- start ---------- */
+$search.addEventListener("input", updateUI);
+$search.addEventListener("focus", refreshStale);   // make sure every topic is loaded and fresh before searching
+setInterval(() => { if (!current.state.loading) loadTopic(current); }, STALE_MS); // auto-refresh current topic
+
+buildTabs();
+function syncHeader() { document.documentElement.style.setProperty("--hdr", $header.offsetHeight + "px"); }
+window.addEventListener("resize", syncHeader);
+window.addEventListener("load", syncHeader);
+syncHeader();
+let startTopic = TOPICS[0];
+try { startTopic = TOPICS.find(t => t.id === localStorage.getItem(LAST_TOPIC_KEY)) || TOPICS[0]; } catch (e) {}
+selectTopic(startTopic).then(refreshStale);   // then load the other topics in the background
+</script>
+</body>
+</html>
